@@ -29,6 +29,8 @@ namespace ClientSimNet
         internal int StartFrame;
         internal bool Joined;
         internal readonly List<Action> AfterJoin = new List<Action>();
+        /// <summary>The other players' bodies as this client sees them (their world only has scene objects), by playerId.</summary>
+        internal readonly Dictionary<int, Transform> Ghosts = new Dictionary<int, Transform>();
     }
 
     public partial class NetSim
@@ -259,8 +261,58 @@ namespace ClientSimNet
             if (_possessed != null && _yourHold.IsValid()) _yourHold.GetPhysicsScene().Simulate(Time.fixedDeltaTime);
         }
 
+        /// <summary>
+        /// A remote player's world holds only scene objects, so without this they'd see nobody (not you, not each other).
+        /// ponytail: a capsule + name per other player, at their own-client position (no latency); shown only while you view that world.
+        /// </summary>
+        void UpdateGhosts()
+        {
+            var players = VRCPlayerApi.AllPlayers.Where(p => p != null).ToList();
+            var viewed = Pov && !Pov.IsLocal ? WorldOfPlayer(Pov.PlayerId) : null;
+            var cam = viewed == null ? null : Camera.allCameras.Where(c => c.enabled && (c.cullingMask & 1) != 0).OrderByDescending(c => c.depth).FirstOrDefault();
+            foreach (var w in _worldByPlayer.Values)
+            {
+                if (!w.Root || w.Player == null) continue;
+                foreach (var id in w.Ghosts.Keys.Where(id => id == w.Player.playerId || players.All(p => p.playerId != id)).ToArray())
+                { if (w.Ghosts[id]) Destroy(w.Ghosts[id].gameObject); w.Ghosts.Remove(id); }
+                foreach (var p in players)
+                {
+                    if (p == w.Player) continue;
+                    if (!w.Ghosts.TryGetValue(p.playerId, out var g) || !g) w.Ghosts[p.playerId] = g = MakeGhost(w, p);
+                    var pup = p.isLocal || !p.gameObject ? null : p.gameObject.GetComponent<NetSimPuppet>();
+                    if (pup) g.SetPositionAndRotation(pup.SimPosition, pup.SimRotation); else g.SetPositionAndRotation(PosOf(p), RotOf(p));
+                    bool show = w == viewed;
+                    foreach (var r in g.GetComponentsInChildren<Renderer>()) r.forceRenderingOff = !show;
+                    if (show && cam) g.GetChild(1).rotation = cam.transform.rotation;
+                }
+            }
+        }
+
+        static Transform MakeGhost(NetSimWorld w, VRCPlayerApi p)
+        {
+            var root = new GameObject($"Ghost {p.displayName}").transform;
+            root.SetParent(w.Root.transform, false);
+            var body = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            DestroyImmediate(body.GetComponent<Collider>()); // a picture of the player, not a physics body
+            body.transform.SetParent(root, false);
+            body.transform.localPosition = new Vector3(0, 0.8f, 0);
+            body.transform.localScale = new Vector3(0.5f, 0.8f, 0.5f);
+            var color = Color.HSVToRGB((p.playerId * 0.37f) % 1f, 0.55f, 0.95f);
+            body.GetComponent<Renderer>().material.color = color;
+            var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            var label = new GameObject("Name").AddComponent<TextMesh>();
+            label.transform.SetParent(root, false);
+            label.transform.localPosition = new Vector3(0, 1.85f, 0);
+            label.font = font; label.GetComponent<MeshRenderer>().sharedMaterial = font.material;
+            label.text = p.displayName;
+            label.anchor = TextAnchor.LowerCenter; label.alignment = TextAlignment.Center;
+            label.fontSize = 64; label.characterSize = 0.04f; label.color = Color.white;
+            return root;
+        }
+
         void LateUpdateWorlds()
         {
+            UpdateGhosts();
             foreach (var w in _worldByPlayer.Values)
             {
                 if (w.Player == null) continue;

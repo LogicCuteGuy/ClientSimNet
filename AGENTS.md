@@ -12,7 +12,7 @@ is not done until it has passed the scenarios below in Play mode with at least 2
   `Networking.LocalPlayer`, `player.isLocal`, `IsOwner`, `IsMaster` answer for them there. Their copy changes
   **only** through the network (synced vars → OnDeserialization, network events, ObjectSync, ownership).
   Anything not synced (a local toggle, an unsynced pickup, a non-synced field) stays different, like VRChat.
-- Viewing as a player (POV / menu "View") renders **their** copy, so you can see what they see.
+- Viewing as a player (POV / menu "View") renders **their** copy, so you can see what they see. Every world also shows the other players (you included) as a named capsule, at their own-client position (no latency).
 - `InteractAs`, puppet pickups and POV Control (ClientSim's player as them) run on the puppet's copy. A puppet grabbing a pickup without
   VRCObjectSync moves only their copy.
 - So you can test **sender** and **receiver** code on every client: e.g. you click → Bob's copy gets it after

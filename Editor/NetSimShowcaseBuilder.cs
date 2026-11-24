@@ -65,7 +65,7 @@ namespace ClientSimNet
                 p => Udon(Prim(PrimitiveType.Cylinder, "Payload (continuous 200B limit, click = grow)", p, 0.5f, 0.3f), "NetSimTestPayload"));
 
             // row 3: players and pickups
-            Station(0, 2, Players, "9  Players & master", "OnPlayerJoined / Left, OnMasterTransferred.\nMenu (Esc): + Add player, Leave, Master leaves.\nThe master's join counter moves on.",
+            Station(0, 2, Players, "9  Players & master", "OnPlayerJoined / Left, OnMasterTransferred.\nMenu (Esc): + Add player, Rejoin, Leave, Master leaves.\nThe master's join counter moves on.",
                 p => Udon(Prim(PrimitiveType.Capsule, "Players (join/leave/master, click = list)", p, 0.5f), "NetSimTestPlayers"));
             Station(1, 2, Pickups, "10  Synced pickup", "Grab it: you become owner, VRCObjectSync moves\nit for everyone. Use (click) fires an All event.\nBob grabbing it steals it from your hand.",
                 p => { var g = Pickup(PrimitiveType.Cube, "Pickup (ObjectSync)", p, 0.3f, true, "Synced pickup"); Udon(g, "NetSimTestPickup"); return g; });
@@ -97,6 +97,28 @@ namespace ClientSimNet
             Station(3, 3, PlayerObj, "14  Leaderboard", "Not synced: each client reads every card with\nFindComponentInPlayerObjects, so it can't desync.\nIt grows with the best score. Click: print.",
                 p => null);
 
+            // row 5: the two kinds of pickup side by side
+            Station(1, 4, Pickups, "15  Pickup: synced vs not", "Left has VRCObjectSync, right has none.\nGrab each as you, then view Bob (Alt+2): the left\none moved in his world too, the right one didn't.",
+                p =>
+                {
+                    var synced = Pickup(PrimitiveType.Cube, "Compare: synced pickup (ObjectSync)", p + new Vector3(-0.95f, 0, 0), 0.3f, true, "Synced");
+                    Udon(synced, "NetSimTestPickup");
+                    var local = Pickup(PrimitiveType.Cube, "Compare: unsynced pickup (moves only for the holder)", p + new Vector3(0.95f, 0, 0), 0.3f, false, "Not synced");
+                    foreach (var x in new[] { -0.95f, 0.95f })
+                        Block(_root, PrimitiveType.Cylinder, "Pedestal", p + new Vector3(x, -0.95f, 0), new Vector3(0.6f, 0.5f, 0.6f), Mat(new Color(0.85f, 0.86f, 0.9f), 0.4f));
+                    var tag = Canvas(_root, "Synced tag", p + new Vector3(-0.95f, 0.75f, 0), new Vector2(520, 170), 0.0025f);
+                    Panel(tag, new Color(0.05f, 0.06f, 0.09f, 0.88f), Vector2.zero, Vector2.one);
+                    Label(tag, "<b>SYNCED</b>", 52, new Color(0.75f, 0.6f, 1f), FontStyle.Normal, new Vector2(0.05f, 0.5f), new Vector2(0.95f, 0.98f));
+                    var owner = Label(tag, "", 30, new Color(1f, 0.85f, 0.35f), FontStyle.Normal, new Vector2(0.05f, 0.02f), new Vector2(0.95f, 0.5f));
+                    var st = NetSimTestSceneBuilder.AddUdon(tag.gameObject, "NetSimShowStatus");
+                    Set(st, "label", owner); Set(st, "target", synced);
+                    var tag2 = Canvas(_root, "Unsynced tag", p + new Vector3(0.95f, 0.75f, 0), new Vector2(520, 170), 0.0025f);
+                    Panel(tag2, new Color(0.05f, 0.06f, 0.09f, 0.88f), Vector2.zero, Vector2.one);
+                    Label(tag2, "<b>NOT SYNCED</b>", 52, new Color(1f, 0.8f, 0.45f), FontStyle.Normal, new Vector2(0.05f, 0.5f), new Vector2(0.95f, 0.98f));
+                    Label(tag2, "only the holder's copy moves", 30, new Color(0.88f, 0.9f, 0.95f), FontStyle.Normal, new Vector2(0.05f, 0.02f), new Vector2(0.95f, 0.5f));
+                    return synced;
+                }, pedestal: false);
+
             typeof(UdonSharpEditorUtility).Assembly.GetType("UdonSharpEditor.UdonSharpEditorManager")
                 ?.GetMethod("RunAllUpdates", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)?.Invoke(null, new object[] { null });
             EditorSceneManager.SaveScene(scene);
@@ -113,8 +135,9 @@ namespace ClientSimNet
             var group = new GameObject(title.Trim());
             group.transform.SetParent(_root.transform);
             group.transform.position = at;
-            Block(group, PrimitiveType.Cylinder, "Base", at + new Vector3(0, 0.04f, 0), new Vector3(3.2f, 0.04f, 3.2f), Mat(new Color(0.16f, 0.17f, 0.21f), 0.7f));
-            Block(group, PrimitiveType.Cylinder, "Ring", at + new Vector3(0, 0.02f, 0), new Vector3(3.45f, 0.02f, 3.45f), Glow(color, 0.9f));
+            // decoration only: no colliders (the floor already holds you up)
+            Block(group, PrimitiveType.Cylinder, "Base", at + new Vector3(0, 0.04f, 0), new Vector3(3.2f, 0.04f, 3.2f), Mat(new Color(0.16f, 0.17f, 0.21f), 0.7f), false);
+            Block(group, PrimitiveType.Cylinder, "Ring", at + new Vector3(0, 0.02f, 0), new Vector3(3.45f, 0.02f, 3.45f), Glow(color, 0.9f), false);
             if (pedestal)
                 Block(group, PrimitiveType.Cylinder, "Pedestal", at + new Vector3(0, 0.5f, 0), new Vector3(0.7f, 0.5f, 0.7f), Mat(new Color(0.85f, 0.86f, 0.9f), 0.4f));
 
@@ -157,9 +180,9 @@ namespace ClientSimNet
             var floor = Block(null, PrimitiveType.Plane, "Floor", new Vector3(0, 0, 10), new Vector3(5, 1, 5), Mat(new Color(0.1f, 0.11f, 0.14f), 0.55f));
             floor.transform.SetSiblingIndex(0);
             // a lit path from the spawn through the rows
-            Block(floor, PrimitiveType.Cube, "Path", new Vector3(0, 0.005f, 13), new Vector3(1.4f, 0.01f, 24), Mat(new Color(0.2f, 0.22f, 0.28f), 0.6f));
+            Block(floor, PrimitiveType.Cube, "Path", new Vector3(0, 0.005f, 17), new Vector3(1.4f, 0.01f, 32), Mat(new Color(0.2f, 0.22f, 0.28f), 0.6f));
             foreach (var x in new[] { -0.75f, 0.75f })
-                Block(floor, PrimitiveType.Cube, "Path edge", new Vector3(x, 0.012f, 13), new Vector3(0.03f, 0.01f, 24), Glow(new Color(0.3f, 0.75f, 1f), 0.5f));
+                Block(floor, PrimitiveType.Cube, "Path edge", new Vector3(x, 0.012f, 17), new Vector3(0.03f, 0.01f, 32), Glow(new Color(0.3f, 0.75f, 1f), 0.5f));
 
             var sun = UnityEngine.Object.FindObjectsOfType<Light>().FirstOrDefault(l => l.type == LightType.Directional);
             if (sun)
@@ -197,9 +220,10 @@ namespace ClientSimNet
 
         static GameObject Udon(GameObject g, string type) { NetSimTestSceneBuilder.AddUdon(g, type); return g; }
 
-        static GameObject Block(GameObject parent, PrimitiveType t, string name, Vector3 pos, Vector3 scale, Material m)
+        static GameObject Block(GameObject parent, PrimitiveType t, string name, Vector3 pos, Vector3 scale, Material m, bool collider = true)
         {
             var g = GameObject.CreatePrimitive(t);
+            if (!collider) UnityEngine.Object.DestroyImmediate(g.GetComponent<Collider>());
             g.name = name;
             if (parent) g.transform.SetParent(parent.transform);
             g.transform.position = pos;
