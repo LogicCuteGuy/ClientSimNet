@@ -1,0 +1,19 @@
+{
+    "name": "ClientSimNet.Runtime",
+    "references": [
+        "VRC.ClientSim",
+        "UnityEngine.UI",
+        "VRC.Udon",
+        "VRC.SDKBase",
+        "VRC.SDK3"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

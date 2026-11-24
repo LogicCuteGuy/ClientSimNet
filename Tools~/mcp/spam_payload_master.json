@@ -1,0 +1,6 @@
+[{"action":"preset","name":"Normal","report":false},
+ {"action":"report","log":1},
+ {"action":"interact","obj":"Spam","report":false},{"sleep":3.5},
+ {"action":"interact","obj":"Payload","report":false},{"sleep":0.6},
+ {"action":"master_leaves","report":false},{"sleep":1.0},
+ {"action":"report","log":1}]

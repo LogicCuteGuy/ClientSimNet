@@ -1,0 +1,13 @@
+[{"action":"preset","name":"Normal","report":false},
+ {"action":"report","log":1},
+ {"action":"take_ownership","player":"Bob","obj":"Lock","report":false},{"sleep":0.5},
+ {"action":"interact","player":"Bob","obj":"Lock","report":false},{"sleep":0.5},
+ {"action":"interact","obj":"Lock","report":false},{"sleep":0.8},
+ {"action":"report","show":["Lock"],"log":1},
+ {"action":"take_ownership","player":"Ann","obj":"Lock","report":false},{"sleep":0.8},
+ {"action":"report","show":["Lock"],"log":1},
+ {"action":"grab","player":"Ann","obj":"Pickup","report":false},{"sleep":0.5},
+ {"action":"use","player":"Ann","report":false},{"sleep":0.5},
+ {"action":"report","show":["Pickup"],"log":1},
+ {"action":"leave","player":"Bob","report":false},{"sleep":0.6},
+ {"action":"report","show":["Lock","Pickup"],"log":1}]

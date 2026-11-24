@@ -1,0 +1,29 @@
+{
+    "name": "ClientSimNet.Mcp",
+    "rootNamespace": "ClientSimNet.Mcp",
+    "references": [
+        "ClientSimNet.Runtime",
+        "ClientSimNet.Editor",
+        "MCPForUnity.Editor"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "Newtonsoft.Json.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "CLIENTSIMNET_UNITY_MCP"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.coplaydev.unity-mcp",
+            "expression": "0.0.0",
+            "define": "CLIENTSIMNET_UNITY_MCP"
+        }
+    ],
+    "noEngineReferences": false
+}

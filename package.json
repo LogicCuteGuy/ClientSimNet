@@ -1,0 +1,18 @@
+{
+  "name": "com.logiccuteguy.clientnetsim",
+  "displayName": "ClientSim Net",
+  "version": "0.1.0",
+  "license": "MIT",
+  "unity": "2022.3",
+  "description": "Multiplayer network simulator for VRChat ClientSim: remote puppet players, latency/jitter/loss, real RequestSerialization/OnDeserialization, network event targets and rate limits, ownership, late join, pickups with ObjectSync. Menu: VRChat SDK/ClientSim Net.",
+  "vpmDependencies": {
+    "com.vrchat.worlds": ">=3.10.0"
+  },
+  "samples": [
+    {
+      "displayName": "Test World",
+      "description": "NetSimShowcase.unity: a lit plaza with 14 signed stations, one per networking use case (manual/continuous sync, late join, unsynced state, events, rate limit, ownership request, size limits, players/master, synced/unsynced pickups, physics ball, PlayerObjects + leaderboard), each showing whose client you see and who owns it. Also the plain test scene NetSimTest.unity (counter, spinner, events, toggle, lock, players, payload, spam, pickup, PlayerObject leaderboard) with its UdonSharp scripts and world assets. Open the scene and press Play.",
+      "path": "Samples~/Test World"
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+[{"action":"preset","name":"Normal","report":false},
+ {"action":"add_player","player":"Bob"},{"action":"add_player","player":"Ann"},
+ {"sleep":1.5},
+ {"action":"report","show":["players","Counter"]}]

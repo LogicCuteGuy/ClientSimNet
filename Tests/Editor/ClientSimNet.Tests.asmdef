@@ -1,0 +1,29 @@
+{
+    "name": "ClientSimNet.Tests",
+    "references": [
+        "ClientSimNet.Runtime",
+        "VRC.Udon",
+        "VRC.SDKBase",
+        "VRC.SDK3",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll",
+        "VRCSDK3.dll",
+        "VRCSDKBase.dll",
+        "VRC.Udon.Common.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

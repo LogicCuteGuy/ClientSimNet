@@ -1,0 +1,15 @@
+[
+ {"action": "preset", "name": "Normal", "report": false},
+ {"sleep": 1.0},
+ {"action": "report", "show": ["Counter"], "log": 3},
+ {"action": "take_ownership", "player": "Bob", "obj": "Counter"},
+ {"sleep": 0.5},
+ {"action": "send_state", "player": "Bob", "obj": "Counter", "json": "{\"_count\":5}"},
+ {"sleep": 0.5},
+ {"action": "interact", "player": "Bob", "obj": "Counter"},
+ {"sleep": 0.6},
+ {"action": "report", "show": ["Counter"]},
+ {"action": "interact", "obj": "Counter"},
+ {"sleep": 0.6},
+ {"action": "report", "show": ["Counter"]}
+]

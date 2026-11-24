@@ -1,0 +1,11 @@
+[{"action":"preset","name":"Normal","report":false},
+ {"action":"report","log":1},
+ {"action":"interact","obj":"Events"},
+ {"sleep":0.5},
+ {"action":"take_ownership","player":"Bob","obj":"Events","report":false},
+ {"sleep":0.5},
+ {"action":"interact","obj":"Events"},
+ {"sleep":0.5},
+ {"action":"interact","player":"Bob","obj":"Events"},
+ {"sleep":0.6},
+ {"action":"report","log":60}]
