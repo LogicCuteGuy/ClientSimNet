@@ -1,7 +1,7 @@
 import socket, struct, json, sys
 import sys; sys.stdout.reconfigure(encoding="utf-8")
 def call(t, params=None, timeout=60):
-    s = socket.create_connection(("127.0.0.1", 6400), timeout=timeout)
+    s = socket.create_connection(("127.0.0.1", int(__import__("os").environ.get("UNITY_MCP_PORT", 6400))), timeout=timeout)
     s.recv(64)  # WELCOME handshake
     body = json.dumps({"type": t, "params": params or {}}).encode()
     s.sendall(struct.pack(">Q", len(body)) + body)

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using VRC.SDK3.ClientSim;
 using VRC.SDK3.Components;
 using VRC.SDKBase;
 using VRC.Udon;
@@ -31,6 +32,8 @@ namespace ClientSimNet
         internal readonly List<Action> AfterJoin = new List<Action>();
         /// <summary>The other players' bodies as this client sees them (their world only has scene objects), by playerId.</summary>
         internal readonly Dictionary<int, Transform> Ghosts = new Dictionary<int, Transform>();
+        /// <summary>Every player's spawned PlayerObject (your scene) → this client's own copy of it.</summary>
+        internal readonly Dictionary<GameObject, GameObject> PlayerObjects = new Dictionary<GameObject, GameObject>();
     }
 
     public partial class NetSim
@@ -42,7 +45,8 @@ namespace ClientSimNet
         readonly Dictionary<GameObject, NetSimWorld> _worldByRoot = new Dictionary<GameObject, NetSimWorld>();
         GameObject[] _mainRoots = Array.Empty<GameObject>();
         UdonManager _um;
-        NetSimWorld _acting; // C# acting for a player on an object their world doesn't copy (PlayerObjects)
+        NetSimWorld _acting; // C# acting for a player on an object their world doesn't copy (yet)
+        readonly HashSet<GameObject> _mainPO = new HashSet<GameObject>();
         float _nextView;
 
         public IEnumerable<NetSimWorld> Worlds => _worldByPlayer.Values;
@@ -74,9 +78,18 @@ namespace ClientSimNet
             return i >= 0 && i < theirs.Length ? theirs[i] : c;
         }
 
+        /// <summary>The world's copy of a component of yours (same index among its type), or the component itself.</summary>
+        internal static Component CompIn(Component c, NetSimWorld w)
+        {
+            if (!c || w == null || !w.CloneOf.TryGetValue(c.gameObject, out var go) || !go) return c;
+            var mine = c.gameObject.GetComponents(c.GetType()); var theirs = go.GetComponents(c.GetType());
+            int i = Array.IndexOf(mine, c);
+            return i >= 0 && i < theirs.Length ? theirs[i] : c;
+        }
+
         public UdonBehaviour Orig(UdonBehaviour ub) { var w = ub ? WorldOf(ub.gameObject) : null; return w != null && w.UbOrig.TryGetValue(ub, out var o) ? o : ub; }
 
-        /// <summary>The given player's copy of an object (yours = the scene object). Null if their world has no copy (PlayerObjects are shared).</summary>
+        /// <summary>The given player's copy of an object (yours = the scene object). Null if their world has no copy (yet).</summary>
         public GameObject GoIn(GameObject go, int playerId)
         {
             go = Orig(go);
@@ -123,7 +136,10 @@ namespace ClientSimNet
         void CaptureTemplate()
         {
             var scene = SceneManager.GetActiveScene();
-            var roots = scene.GetRootGameObjects().Where(r => r.name != "UdonManager" && !r.GetComponents<Component>().Any(IsClientSim)).ToArray();
+            // ClientSim's own roots hold only its components; a world root it networked (root PlayerObject template, root synced object) stays
+            // (the descriptor root stays yours: its world-settings Udon sets locomotion on LocalPlayer, which ClientSim refuses for puppets)
+            bool ClientSimRoot(GameObject r) { var cs = r.GetComponents<Component>().Where(c => !(c is Transform)).ToArray(); return r.GetComponent<VRC_SceneDescriptor>() || (cs.Length > 0 && cs.All(IsClientSim)); }
+            var roots = scene.GetRootGameObjects().Where(r => r.name != "UdonManager" && !ClientSimRoot(r)).ToArray();
             if (roots.Length == 0) return;
             _mainRoots = roots;
             // one Instantiate of everything keeps references between root objects pointing inside the copy
@@ -162,7 +178,7 @@ namespace ClientSimNet
             foreach (var c in t.GetComponentsInChildren<AudioListener>(true)) c.enabled = false;
             foreach (var c in t.GetComponentsInChildren<UnityEngine.EventSystems.UIBehaviour>(true))
                 if (c is UnityEngine.EventSystems.EventSystem || c is UnityEngine.EventSystems.BaseInputModule) c.enabled = false;
-            // ponytail: PlayerObjects stay shared (ClientSim spawns one set into your scene); per-world copies if needed
+            // templates stay inactive like in your scene; each world spawns its own copies from them (SyncPlayerObjects)
             foreach (var c in t.GetComponentsInChildren<VRCPlayerObject>(true)) c.gameObject.SetActive(false);
         }
 
@@ -189,12 +205,7 @@ namespace ClientSimNet
             var c = root.GetComponentsInChildren<Transform>(true);
             for (int i = 1; i < t.Length && i < c.Length; i++)
             {
-                if (!_templOrig.TryGetValue(t[i], out var o) || !o) continue;
-                w.CloneOf[o.gameObject] = c[i].gameObject;
-                w.OrigOf[c[i].gameObject] = o.gameObject;
-                var ou = o.GetComponents<UdonBehaviour>();
-                var cu = c[i].GetComponents<UdonBehaviour>();
-                for (int k = 0; k < ou.Length && k < cu.Length; k++) { w.UbClone[ou[k]] = cu[k]; w.UbOrig[cu[k]] = ou[k]; }
+                if (_templOrig.TryGetValue(t[i], out var o) && o) Link(w, o.gameObject, c[i].gameObject);
             }
             w.ObjectSyncs = w.CloneOf.Where(kv => kv.Key.GetComponent<VRCObjectSync>()).Select(kv => (kv.Key.transform, kv.Value.transform)).ToArray();
             w.Vis = new Visuals(w.CloneOf.Values);
@@ -206,16 +217,34 @@ namespace ClientSimNet
                 ub.IsNetworkingSupported = true; // scene behaviours get networking (UdonManager.OnSceneLoaded does the same)
                 _um.RegisterUdonBehaviour(ub);
             }
+            SyncPlayerObjects(w, SpawnedPlayerObjects().ToList());
             ApplyView();
             AddLog(LogType.Log, $"{p.displayName}'s client loaded the world ({w.UbClone.Count} UdonBehaviours run there). Only the network changes it.", null, p.playerId);
             return w;
         }
 
+        static void Link(NetSimWorld w, GameObject o, GameObject c)
+        {
+            w.CloneOf[o] = c; w.OrigOf[c] = o;
+            var ou = o.GetComponents<UdonBehaviour>(); var cu = c.GetComponents<UdonBehaviour>();
+            for (int k = 0; k < ou.Length && k < cu.Length; k++) { w.UbClone[ou[k]] = cu[k]; w.UbOrig[cu[k]] = ou[k]; }
+        }
+
         void TickWorlds()
         {
+            var spawned = SpawnedPlayerObjects().ToList();
+            if (!_mainPO.SetEquals(spawned.Select(s => s.inst)))
+            {
+                _mainPO.Clear(); _mainPO.UnionWith(spawned.Select(s => s.inst));
+                _mainVis?.Show(true); // rebuilt below; ApplyView hides again in the same frame
+                _mainVis = new Visuals(_templOrig.Values.Where(x => x).Select(x => x.gameObject)
+                    .Concat(_mainPO.SelectMany(i => i.GetComponentsInChildren<Transform>(true)).Select(x => x.gameObject)));
+                ApplyView();
+            }
             foreach (var w in _worldByPlayer.Values.ToArray())
             {
                 if (!w.Puppet || !Utilities.IsValid(w.Player)) { DestroyWorld(w); continue; }
+                SyncPlayerObjects(w, spawned);
                 if (!w.Joined && Time.frameCount > w.StartFrame + 2)
                 {
                     w.Joined = true; JoinWorld(w);
@@ -382,6 +411,75 @@ namespace ClientSimNet
             }
         }
 
+        // ---------------------------------------------------------------- PlayerObjects per world
+
+        /// <summary>ClientSim's spawned PlayerObjects (your scene), each with the template it came from.</summary>
+        static IEnumerable<(GameObject templ, GameObject inst)> SpawnedPlayerObjects()
+        {
+#if VRC_ENABLE_PLAYER_PERSISTENCE
+            var templs = ClientSimNetworkingUtilities.GetPlayerObjectList(); // same order ClientSim spawns them in
+            foreach (var p in VRCPlayerApi.AllPlayers)
+            {
+                var csp = p != null ? p.GetClientSimPlayer() : null;
+                var insts = csp ? csp.PlayerPersistenceRootObjects : null; // Unity null, not C# null: no ?.
+                if (insts == null) continue;
+                for (int i = 0; i < insts.Length && i < templs.Length; i++)
+                    if (insts[i] && templs[i]) yield return (templs[i].gameObject, insts[i]);
+            }
+#else
+            yield break;
+#endif
+        }
+
+        /// <summary>
+        /// Every client spawns every player's PlayerObjects from its own scene's template, so each world gets its own
+        /// copies (spawned from its untouched template, references point into that world), mapped to yours like scene
+        /// objects: sync, events, interacts and FindComponentInPlayerObjects then reach that client's copy.
+        /// </summary>
+        void SyncPlayerObjects(NetSimWorld w, List<(GameObject templ, GameObject inst)> spawned)
+        {
+            bool changed = false;
+            foreach (var inst in w.PlayerObjects.Keys.Where(k => !k).ToArray()) // its player left: ClientSim destroyed yours
+            {
+                var copy = w.PlayerObjects[inst];
+                w.PlayerObjects.Remove(inst);
+                if (!copy) continue;
+                foreach (var t in copy.GetComponentsInChildren<Transform>(true))
+                {
+                    if (w.OrigOf.TryGetValue(t.gameObject, out var o)) { w.CloneOf.Remove(o); w.OrigOf.Remove(t.gameObject); }
+                    foreach (var cu in t.GetComponents<UdonBehaviour>())
+                        if (w.UbOrig.TryGetValue(cu, out var ou)) { w.UbClone.Remove(ou); w.UbOrig.Remove(cu); }
+                }
+                Destroy(copy);
+                changed = true;
+            }
+            foreach (var (templ, inst) in spawned)
+            {
+                if (w.PlayerObjects.ContainsKey(inst) || !w.CloneOf.TryGetValue(templ, out var wt) || !wt) continue;
+                var copy = Instantiate(wt, wt.transform.parent); // inactive like the template
+                copy.name = inst.name;
+                w.PlayerObjects[inst] = copy;
+                var idx = templ.GetComponentsInChildren<Transform>(true).Select((t, i) => (t, i)).ToDictionary(x => x.t, x => x.i);
+                var it = inst.GetComponentsInChildren<Transform>(true);
+                var wts = wt.GetComponentsInChildren<Transform>(true);
+                var cs = copy.GetComponentsInChildren<Transform>(true);
+                for (int i = 0; i < wts.Length && i < cs.Length; i++)
+                    if (w.OrigOf.TryGetValue(wts[i].gameObject, out var o) && idx.TryGetValue(o.transform, out var j) && j < it.Length)
+                        Link(w, it[j].gameObject, cs[i].gameObject);
+                copy.SetActive(true);
+                foreach (var ub in copy.GetComponentsInChildren<UdonBehaviour>(true)) { ub.IsNetworkingSupported = true; _um.RegisterUdonBehaviour(ub); }
+                changed = true;
+            }
+            if (!changed) return;
+            w.ObjectSyncs = w.CloneOf.Where(kv => kv.Key && kv.Key.GetComponent<VRCObjectSync>()).Select(kv => (kv.Key.transform, kv.Value.transform)).ToArray();
+            w.Vis?.Show(true); // rebuilt; ApplyView hides it again in the same frame
+            w.Vis = new Visuals(w.CloneOf.Values);
+            ApplyView();
+        }
+
+        /// <summary>Your scene's roots plus PlayerObjects ClientSim spawned at the root (their template is a root object).</summary>
+        IEnumerable<GameObject> YourRoots() => _mainRoots.Concat(_mainPO.Where(i => i && !i.transform.parent));
+
         // ---------------------------------------------------------------- control a player with ClientSim's own player
 
         NetSimWorld _possessed;
@@ -420,12 +518,12 @@ namespace ClientSimNet
             {
                 _yourPos = _oPos(local); _yourRot = _oRot(local);
                 if (!_yourHold.IsValid()) _yourHold = SceneManager.CreateScene("NetSim World You (while you control someone)", new CreateSceneParameters(LocalPhysicsMode.Physics3D));
-                foreach (var r in _mainRoots) if (r && r.scene == active) SceneManager.MoveGameObjectToScene(r, _yourHold);
+                foreach (var r in YourRoots()) if (r && r.scene == active) SceneManager.MoveGameObjectToScene(r, _yourHold);
             }
 
             if (w == null)
             {
-                foreach (var r in _mainRoots) if (r && _yourHold.IsValid() && r.scene == _yourHold) SceneManager.MoveGameObjectToScene(r, active);
+                foreach (var r in YourRoots()) if (r && _yourHold.IsValid() && r.scene == _yourHold) SceneManager.MoveGameObjectToScene(r, active);
                 _oTp?.Invoke(local, _yourPos, _yourRot);
                 AddLog(LogType.Log, "Back in your own body.");
                 return;

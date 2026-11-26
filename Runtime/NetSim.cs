@@ -130,7 +130,7 @@ namespace ClientSimNet
             _oLocal = Networking._LocalPlayer; _oIsMaster = Networking._IsMaster; _oGetOwner = Networking._GetOwner;
             _oIsOwner = Networking._IsOwner; _oPIsOwner = VRCPlayerApi._IsOwner; _oTp = VRCPlayerApi._TeleportTo;
             _oFindPO = Networking._FindComponentInPlayerObjects;
-            Networking._FindComponentInPlayerObjects = (pl, c) => _oFindPO(pl, Orig(c)); // PlayerObjects are shared: look up by your template
+            Networking._FindComponentInPlayerObjects = (pl, c) => CompIn(_oFindPO(pl, Orig(c)), Ctx); // ClientSim looks up yours; each world gets its own copy
             // every Networking answer depends on whose client runs the code (see Ctx); a remote world's objects map to yours
             Networking._SetOwner = OnSetOwner;
             Networking._LocalPlayer = () => Ctx?.Player ?? _oLocal();

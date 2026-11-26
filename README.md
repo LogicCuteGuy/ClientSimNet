@@ -26,7 +26,7 @@ Stock ClientSim has no latency, no `OnDeserialization`, and runs `Owner`/`Others
 **Unity Package Manager**: **Window > Package Manager > + > Add package from git URL**:
 
 ```text
-https://github.com/LogicCuteGuy/ClientSimNet.git#0.1.1
+https://github.com/LogicCuteGuy/ClientSimNet.git#0.1.2
 ```
 
 Requires Unity 2022.3 and the VRChat Worlds SDK 3.10.0 or newer. Use one installation method per project.

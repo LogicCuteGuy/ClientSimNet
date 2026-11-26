@@ -1,6 +1,6 @@
 # unity-mcp bridge scripts (no MCP client needed)
 
-Talk to the unity-mcp Unity bridge directly (TCP 127.0.0.1:6400). Python 3, stdlib only.
+Talk to the unity-mcp Unity bridge directly (TCP 127.0.0.1:6400; set `UNITY_MCP_PORT` if the MCP window shows another socket port). Python 3, stdlib only.
 Pass this folder as the first argument (`D`) so the scripts can import `u.py`.
 
 | Script | Does |

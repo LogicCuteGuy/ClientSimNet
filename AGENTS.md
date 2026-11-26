@@ -195,8 +195,9 @@ Not like the real game:
   but Udon `Physics.Raycast` etc. there query your scene, and the puppet's body isn't in its world (no player
   collider/OnPlayerTrigger there). ObjectSync copies are kinematic and follow your scene's object (where its
   physics runs), without their own interpolation. No cameras/audio listeners in remote worlds.
-- PlayerObjects are shared (only your scene has the spawned copies); `FindComponentInPlayerObjects` from a
-  remote world returns yours. VRCInstantiate in a remote world spawns into your scene.
+- PlayerObjects: every world spawns its own copy of every player's objects (fresh from its template, right
+  after ClientSim spawns yours); `FindComponentInPlayerObjects` there returns that world's copy, and
+  `GoIn`/`UbIn` reach it. VRCInstantiate in a remote world spawns into your scene.
 - Ownership changes are global at once (except a puppet's own pending takeover); `OnOwnershipTransferred`
   reaches remote worlds when it reaches you.
 - Player APIs other than `TeleportTo` (Immobilize, SetWalkSpeed, ...) on a puppet do nothing (ClientSim warns).
